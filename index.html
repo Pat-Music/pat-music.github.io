@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AR Music Game - Interactive Pixel Art Edition</title>
+  <style>
+    /* Full-screen, dark background, and pixelated style */
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #222;
+    }
+    /* UI Panel with retro pixel art styling */
+    #ui-panel {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 10;
+      background: rgba(0, 0, 0, 0.8);
+      padding: 10px;
+      border: 2px solid #fff;
+      font-family: 'Press Start 2P', sans-serif;
+    }
+    #ui-panel button {
+      background: #222;
+      border: 2px solid #fff;
+      color: #fff;
+      padding: 5px 10px;
+      margin: 5px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    #ui-panel button:hover {
+      background: #444;
+    }
+    /* Hide the video element; its frames are drawn on the canvas */
+    #video {
+      display: none;
+    }
+    /* The canvas covers the entire window and uses pixelated scaling */
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: #000;
+      z-index: 1;
+      pointer-events: none;
+      image-rendering: pixelated;
+    }
+    /* Import the retro pixel font */
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+  </style>
+</head>
+<body>
+  <!-- UI Panel: Instrument selection and mirror toggle -->
+  <div id="ui-panel">
+    <button id="drumBtn">Drum</button>
+    <button id="pianoBtn">Piano</button>
+    <button id="guitarBtn">Guitar</button>
+    <button id="synthBtn">Synth</button>
+    <button id="toggleMirror">Toggle Mirror</button>
+  </div>
+  
+  <!-- Hidden video element for the webcam feed -->
+  <video id="video" playsinline></video>
+  <!-- Canvas for video feed and AR overlays -->
+  <canvas id="canvas"></canvas>
+  
+  <!-- Include MediaPipe Hands and helper libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  
+  <!-- Include Tone.js for audio synthesis (via jsDelivr) -->
+  <script src="https://cdn.jsdelivr.net/npm/tone@14.7.77/build/Tone.js"></script>
+  
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      /*******************************************************
+       * GLOBAL VARIABLES & SETUP
+       *******************************************************/
+      let currentInstrument = 'drum'; // "drum", "piano", "guitar", or "synth"
+      let instrumentZones = [];       // Array of instrument hit zones
+      let handHistory = {};           // Stores recent finger positions per (hand, finger)
+      let animations = [];            // For hit animations (expanding dots)
+      let judgements = [];            // For displaying feedback ("Perfect", "Fine", "Poor")
+      let mirror = false;             // Whether to mirror the video & AR overlays
+      const detectionTolerance = 60;  // Extra pixels added to each zone’s trigger radius
+      
+      // Beat settings (for judgement feedback)
+      Tone.Transport.bpm.value = 120;
+      const beatInterval = 60 / Tone.Transport.bpm.value; // e.g., 0.5 sec at 120 BPM
+      
+      /***** LOAD CUSTOM IMAGES *****/
+      // Drum images – replace the src values with your file paths.
+      const bassImg = new Image();
+      bassImg.src = "bass.png"; // NEED UPDATE: path to your bass drum image
+      
+      const snareImg = new Image();
+      snareImg.src = "snare.png"; // NEED UPDATE: path to your snare image
+      
+      const hihatImg = new Image();
+      hihatImg.src = "hihat.png"; // NEED UPDATE: path to your hi-hat image
+      
+      const tomImg = new Image();
+      tomImg.src = "tom.png"; // NEED UPDATE: path to your tom drum image
+      
+      // Key image for pitched instruments – you can use one image for all keys.
+      const keyImg = new Image();
+      keyImg.src = "key.png"; // NEED UPDATE: path to your key image
+
+      // Guitar and synth images (if desired)
+      const guitarImg = new Image();
+      guitarImg.src = "guitar.png"; // NEED UPDATE: path to your guitar image
+
+      const synthImg = new Image();
+      synthImg.src = "synth.png"; // NEED UPDATE: path to your synth image
+      
+      /***** LOAD BACKGROUND SOUNDTRACK *****/
+      // This background music will play in a loop.
+      const bgPlayer = new Tone.Player({
+        url: "rockyou.mp3", // NEED UPDATE: path to your background music file (e.g., an mp3)
+        loop: true,
+        volume: -12
+      }).toDestination();
+      
+      /***** SET UP TONE.js INSTRUMENTS *****/
+      // Drum instruments:
+      const bassDrum = new Tone.MembraneSynth().toDestination();
+      const snare = new Tone.NoiseSynth({
+        noise: { type: "white" },
+        envelope: { attack: 0.001, decay: 0.2, sustain: 0 }
+      }).toDestination();
+      const hiHat = new Tone.MetalSynth({
+        frequency: 250,
+        envelope: { attack: 0.001, decay: 0.1, release: 0.1 },
+        harmonicity: 5.1,
+        modulationIndex: 32,
+        resonance: 4000,
+        octaves: 1.5
+      }).toDestination();
+      const tom = new Tone.MembraneSynth({
+        pitchDecay: 0.05,
+        octaves: 4,
+        oscillator: { type: "sine" }
+      }).toDestination();
+      // Pitched instruments:
+      const pianoSynth = new Tone.Synth({ oscillator: { type: 'triangle' } }).toDestination();
+      const guitarSynth = new Tone.PluckSynth().toDestination();
+      const synthInst = new Tone.Synth().toDestination();
+      
+      /***** SET UP CANVAS & VIDEO *****/
+      const canvas = document.getElementById('canvas');
+      const ctx = canvas.getContext('2d');
+      const videoElement = document.getElementById('video');
+      
+      // Resize the canvas to fill the window.
+      function resizeCanvas(){
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        updateInstrumentZones();
+      }
+      resizeCanvas();
+      window.addEventListener("resize", resizeCanvas);
+      
+      /*******************************************************
+       * UPDATE INSTRUMENT ZONES (with Larger Trigger Areas)
+       *******************************************************/
+      function updateInstrumentZones(){
+        let baseZones = [];
+        // Use a larger base radius (e.g., 60)
+        const zoneRadius = 60;
+        if(currentInstrument === 'drum'){
+          const drumTypes = ["bass", "snare", "hihat", "tom"];
+          const zoneCount = drumTypes.length;
+          const zoneWidth = canvas.width / zoneCount;
+          for(let i = 0; i < zoneCount; i++){
+            baseZones.push({
+              x: i * zoneWidth + zoneWidth / 2,
+              y: canvas.height * 0.8,
+              radius: zoneRadius,
+              triggered: false,
+              label: drumTypes[i].toUpperCase(),
+              drumType: drumTypes[i]
+            });
+          }
+        } else if(currentInstrument === 'piano'){
+          const notes = ["C4", "D4", "E4", "F4", "G4", "A4", "B4", "C5"];
+          const zoneCount = notes.length;
+          const zoneWidth = canvas.width / zoneCount;
+          for(let i = 0; i < zoneCount; i++){
+            baseZones.push({
+              x: i * zoneWidth + zoneWidth / 2,
+              y: canvas.height * 0.8,
+              radius: zoneRadius,
+              triggered: false,
+              label: notes[i],
+              note: notes[i]
+            });
+          }
+        } else if(currentInstrument === 'guitar'){
+          const notes = ["E3", "G3", "A3", "B3", "C4", "D4", "E4"];
+          const zoneCount = notes.length;
+          const zoneWidth = canvas.width / zoneCount;
+          for(let i = 0; i < zoneCount; i++){
+            baseZones.push({
+              x: i * zoneWidth + zoneWidth / 2,
+              y: canvas.height * 0.8,
+              radius: zoneRadius,
+              triggered: false,
+              label: notes[i],
+              note: notes[i]
+            });
+          }
+        } else if(currentInstrument === 'synth'){
+          const notes = ["C4", "E4", "G4", "B4", "C5"];
+          const zoneCount = notes.length;
+          const zoneWidth = canvas.width / zoneCount;
+          for(let i = 0; i < zoneCount; i++){
+            baseZones.push({
+              x: i * zoneWidth + zoneWidth / 2,
+              y: canvas.height * 0.8,
+              radius: zoneRadius,
+              triggered: false,
+              label: notes[i],
+              note: notes[i]
+            });
+          }
+        }
+        // If mirror is enabled, flip the x coordinate for each zone.
+        if(mirror){
+          instrumentZones = baseZones.map(zone => {
+            return Object.assign({}, zone, { x: canvas.width - zone.x });
+          });
+        } else {
+          instrumentZones = baseZones;
+        }
+      }
+      
+      /*******************************************************
+       * DRAWING FUNCTIONS: INSTRUMENT LOGOS (Using PNG Images)
+       *******************************************************/
+      function drawInstrumentZones(){
+        if(currentInstrument === 'drum'){
+          instrumentZones.forEach(zone => { drawDrum(zone); });
+        } else if (currentInstrument === 'piano'){
+          instrumentZones.forEach(zone => { drawKey(zone); });
+        } else if (currentInstrument === 'guitar'){
+          instrumentZones.forEach(zone => { drawGuitar(zone); });
+        } else { 
+          instrumentZones.forEach(zone => { drawSynth(zone); });
+        }
+      }
+      
+      // Draw a drum icon using your custom PNG images.
+      function drawDrum(zone){
+        const size = zone.radius * 2;
+        const x = zone.x - zone.radius;
+        const y = zone.y - zone.radius;
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        // Choose the correct image based on the drumType.
+        if(zone.drumType === "bass") {
+          ctx.drawImage(bassImg, x, y, size, size);
+        } else if(zone.drumType === "snare"){
+          ctx.drawImage(snareImg, x, y, size, size);
+        } else if(zone.drumType === "hihat"){
+          ctx.drawImage(hihatImg, x, y, size, size);
+        } else if(zone.drumType === "tom"){
+          ctx.drawImage(tomImg, x, y, size, size);
+        }
+        // Optionally overlay the label.
+        ctx.font = "bold 14px 'Press Start 2P', sans-serif";
+        ctx.fillStyle = "#000";
+        ctx.textAlign = "center";
+        ctx.fillText(zone.label, zone.x, zone.y + 20);
+        ctx.restore();
+      }
+      
+      // Draw a key icon using your custom PNG image.
+      function drawKey(zone){
+        const keyWidth = zone.radius * 2;
+        const keyHeight = zone.radius * 2;
+        const x = zone.x - zone.radius;
+        const y = zone.y - zone.radius;
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(keyImg, x, y, keyWidth, keyHeight);
+        // Optionally overlay the note label.
+        ctx.font = "bold 14px 'Press Start 2P', sans-serif";
+        ctx.fillStyle = "#333";
+        ctx.textAlign = "center";
+        ctx.fillText(zone.label, zone.x, zone.y + 20);
+        ctx.restore();
+      }
+      
+      // Draw a guitar icon using your custom PNG image.
+      function drawGuitar(zone){
+        const guitarWidth = zone.radius * 2;
+        const guitarHeight = zone.radius * 2;
+        const x = zone.x - zone.radius;
+        const y = zone.y - zone.radius;
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(guitarImg, x, y, guitarWidth, guitarHeight);
+        // Optionally overlay the note label.
+        ctx.font = "bold 14px 'Press Start 2P', sans-serif";
+        ctx.fillStyle = "#333";
+        ctx.textAlign = "center";
+        ctx.fillText(zone.label, zone.x, zone.y + 20);
+        ctx.restore();
+      }
+      
+      // Draw a synth icon using your custom PNG image.
+      function drawSynth(zone){
+        const synthWidth = zone.radius * 2;
+        const synthHeight = zone.radius * 2;
+        const x = zone.x - zone.radius;
+        const y = zone.y - zone.radius;
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(synthImg, x, y, synthWidth, synthHeight);
+        // Optionally overlay the note label.
+        ctx.font = "bold 14px 'Press Start 2P', sans-serif";
+        ctx.fillStyle = "#333";
+        ctx.textAlign = "center";
+        ctx.fillText(zone.label, zone.x, zone.y + 20);
+        ctx.restore();
+      }
+      
+      /*******************************************************
+       * HIT ANIMATIONS & JUDGEMENT FEEDBACK
+       *******************************************************/
+      function addHitAnimation(x, y){
+        animations.push({
+          x: x,
+          y: y,
+          startTime: Date.now(),
+          duration: 300
+        });
+      }
+      
+      // When a hit is triggered, compute timing relative to the beat and store a judgement.
+      function addJudgement(zone) {
+        const t = Tone.Transport.seconds;
+        const remainder = t % beatInterval;
+        const diff = Math.min(remainder, beatInterval - remainder);
+        let judgementText = "";
+        if(diff < 0.1) {
+          judgementText = "Perfect";
+        } else if(diff < 0.2) {
+          judgementText = "Fine";
+        } else {
+          judgementText = "Poor";
+        }
+        judgements.push({
+          text: judgementText,
+          x: zone.x,
+          y: zone.y - zone.radius - 20, // display above the zone
+          startTime: Date.now(),
+          duration: 1000
+        });
+      }
+      
+      function drawAnimations(){
+        const now = Date.now();
+        animations = animations.filter(anim => {
+          const elapsed = now - anim.startTime;
+          if(elapsed < anim.duration){
+            const progress = elapsed / anim.duration;
+            const size = 20 + progress * 30;
+            ctx.fillStyle = "rgba(255,215,0," + (1 - progress) + ")";
+            ctx.beginPath();
+            ctx.arc(anim.x, anim.y, size/2, 0, 2 * Math.PI);
+            ctx.fill();
+            return true;
+          }
+          return false;
+        });
+      }
+      
+      // Draw judgement text feedback.
+      function drawJudgements(){
+        const now = Date.now();
+        judgements = judgements.filter(judg => {
+          const elapsed = now - judg.startTime;
+          if(elapsed < judg.duration){
+            const alpha = 1 - (elapsed / judg.duration);
+            ctx.font = "bold 20px 'Press Start 2P', sans-serif";
+            ctx.fillStyle = "rgba(255,255,255," + alpha + ")";
+            ctx.textAlign = "center";
+            ctx.fillText(judg.text, judg.x, judg.y);
+            return true;
+          }
+          return false;
+        });
+      }
+      
+      /*******************************************************
+       * DRAW HAND TRAILS (Trailing Dots)
+       *******************************************************/
+      function drawHandTrails(){
+        const now = Date.now();
+        // For each stored sample in handHistory (for all fingers), draw a dot.
+        for(let key in handHistory) {
+          const trail = handHistory[key];
+          trail.forEach(sample => {
+            const age = now - sample.time;
+            const alpha = Math.max(0, 1 - age/500);
+            ctx.beginPath();
+            ctx.arc(sample.x, sample.y, 4, 0, 2 * Math.PI);
+            ctx.fillStyle = "rgba(0,255,255," + alpha + ")"; // cyan dots
+            ctx.fill();
+          });
+        }
+      }
+      
+      /*******************************************************
+       * GESTURE DETECTION (Downward “Pat”) for any finger
+       *******************************************************/
+      // New function that tracks each finger separately.
+      function detectPatGestureFinger(handIndex, fingerIndex, x, y){
+        const key = handIndex + "_" + fingerIndex;
+        if(!handHistory[key]){
+          handHistory[key] = [];
+        }
+        handHistory[key].push({ x: x, y: y, time: Date.now() });
+        if(handHistory[key].length > 10) {
+          handHistory[key].shift();
+        }
+        if(handHistory[key].length >= 2){
+          const first = handHistory[key][0];
+          const last = handHistory[key][handHistory[key].length - 1];
+          const dy = last.y - first.y;
+          const dt = (last.time - first.time) / 1000;
+          const velocity = dy / dt;
+          if(velocity > 1000) return true;
+        }
+        return false;
+      }
+      
+      /*******************************************************
+       * TRIGGER SOUND & FEEDBACK
+       *******************************************************/
+      function triggerSound(zone){
+        if(currentInstrument === 'drum'){
+          if(zone.drumType === "bass") {
+            bassDrum.triggerAttackRelease("C1", "8n");
+          } else if(zone.drumType === "snare"){
+            snare.triggerAttackRelease("16n");
+          } else if(zone.drumType === "hihat"){
+            hiHat.triggerAttackRelease("16n");
+          } else if(zone.drumType === "tom"){
+            tom.triggerAttackRelease("C2", "8n");
+          }
+        } else if(currentInstrument === 'piano'){
+          pianoSynth.triggerAttackRelease(zone.note, "8n");
+        } else if(currentInstrument === 'guitar'){
+          guitarSynth.triggerAttackRelease(zone.note, "8n");
+        } else if(currentInstrument === 'synth'){
+          synthInst.triggerAttackRelease(zone.note, "8n");
+        }
+        addHitAnimation(zone.x, zone.y);
+        addJudgement(zone);
+      }
+      
+      /*******************************************************
+       * SET UP MEDIAPIPE HANDS & CAMERA
+       *******************************************************/
+      const hands = new window.Hands({
+        locateFile: (file) => {
+          return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+        }
+      });
+      hands.setOptions({
+        maxNumHands: 2,
+        modelComplexity: 1,
+        minDetectionConfidence: 0.7,
+        minTrackingConfidence: 0.5
+      });
+      hands.onResults(onResults);
+      
+      // Start the webcam with full-window dimensions.
+      const camera = new window.Camera(videoElement, {
+        onFrame: async () => { await hands.send({ image: videoElement }); },
+        width: window.innerWidth,
+        height: window.innerHeight
+      });
+      camera.start();
+      
+      /*******************************************************
+       * HANDS RESULTS CALLBACK (with Consistent Mirroring)
+       *******************************************************/
+      function onResults(results){
+        ctx.save();
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw the video feed with mirror transformation if enabled.
+        if(mirror){
+          ctx.save();
+          ctx.translate(canvas.width, 0);
+          ctx.scale(-1, 1);
+          ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+          ctx.restore();
+        } else {
+          ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+        }
+        
+        // Draw instrument zones (which are pre-adjusted if mirrored).
+        drawInstrumentZones();
+        
+        // Process detected hands.
+        if(results.multiHandLandmarks && results.multiHandLandmarks.length > 0){
+          results.multiHandLandmarks.forEach((landmarks, handIndex) => {
+            // Draw hand connectors and landmarks (mirrored if necessary).
+            if(mirror){
+              ctx.save();
+              ctx.translate(canvas.width, 0);
+              ctx.scale(-1, 1);
+              window.drawConnectors(ctx, landmarks, window.HAND_CONNECTIONS, { color: '#00FF00', lineWidth: 2 });
+              window.drawLandmarks(ctx, landmarks, { color: '#FF0000', lineWidth: 1 });
+              ctx.restore();
+            } else {
+              window.drawConnectors(ctx, landmarks, window.HAND_CONNECTIONS, { color: '#00FF00', lineWidth: 2 });
+              window.drawLandmarks(ctx, landmarks, { color: '#FF0000', lineWidth: 1 });
+            }
+            
+            // Process each finger tip (thumb:4, index:8, middle:12, ring:16, pinky:20)
+            const fingerIndices = [4, 8, 12, 16, 20];
+            fingerIndices.forEach(fingerIndex => {
+              let fingerTip = landmarks[fingerIndex];
+              // Compute raw coordinates.
+              let rawX = fingerTip.x * canvas.width;
+              let rawY = fingerTip.y * canvas.height;
+              // If mirrored, adjust x coordinate.
+              let x = mirror ? canvas.width - rawX : rawX;
+              let y = rawY;
+              // Draw a small marker for this finger.
+              ctx.fillStyle = "yellow";
+              ctx.fillRect(x - 2, y - 2, 4, 4);
+              
+              // Check for a downward "pat" gesture for this finger.
+              if(detectPatGestureFinger(handIndex, fingerIndex, x, y)){
+                instrumentZones.forEach(zone => {
+                  let dx = x - zone.x;
+                  let dy = y - zone.y;
+                  let distance = Math.sqrt(dx*dx + dy*dy);
+                  if(distance < zone.radius + detectionTolerance && !zone.triggered){
+                    zone.triggered = true;
+                    triggerSound(zone);
+                    setTimeout(() => { zone.triggered = false; }, 300);
+                  }
+                });
+              }
+            });
+          });
+        }
+        
+        // Draw hand trails and judgement feedback.
+        drawHandTrails();
+        drawAnimations();
+        drawJudgements();
+        ctx.restore();
+      }
+      
+      /*******************************************************
+       * UI EVENT LISTENERS
+       *******************************************************/
+      document.getElementById('drumBtn').addEventListener('click', function(){
+        currentInstrument = 'drum';
+        updateInstrumentZones();
+        console.log('Instrument changed to Drum');
+      });
+      document.getElementById('pianoBtn').addEventListener('click', function(){
+        currentInstrument = 'piano';
+        updateInstrumentZones();
+        console.log('Instrument changed to Piano');
+      });
+      document.getElementById('guitarBtn').addEventListener('click', function(){
+        currentInstrument = 'guitar';
+        updateInstrumentZones();
+        console.log('Instrument changed to Guitar');
+      });
+      document.getElementById('synthBtn').addEventListener('click', function(){
+        currentInstrument = 'synth';
+        updateInstrumentZones();
+        console.log('Instrument changed to Synth');
+      });
+      document.getElementById('toggleMirror').addEventListener('click', function(){
+        mirror = !mirror;
+        updateInstrumentZones();
+        console.log('Mirror toggled: ' + mirror);
+      });
+      
+      // Tone.js requires a user gesture to start the AudioContext.
+      document.body.addEventListener('click', async () => {
+        await Tone.start();
+        // Start the background music.
+        bgPlayer.start();
+        console.log('AudioContext started');
+      });
+    });
+  </script>
+</body>
+</html>
