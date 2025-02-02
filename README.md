@@ -29,4 +29,4 @@ We split the team into 1) web page design and 2) AR game design and connected th
 2. Fine-tune recognition algorithms for smoother interaction.
 3. AR Enhancement: add interactive animations for a more immersive experience.
 
-[Try it out!](pub-music.github.io)
+[Try it out!](https://pat-music.github.io)
