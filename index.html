@@ -222,7 +222,7 @@
     }
     #bottomBar button {
       font-family: 'Press Start 2P', cursive;
-      margin: 0 10px;
+      margin: 0 5px;
       background: #ff69b6;
       color: #fff;
       border: none;
@@ -286,6 +286,10 @@
     <div id="musicChallengePanel" style="display: none;">
       <h3>Music Challenge</h3>
       <p>Select a challenge or upload an MP3.</p>
+      <!-- New audio challenge selections -->
+      <button class="challenge-audio" data-src="code_warriors.mp3">Challenge Audio 1</button>
+      <button class="challenge-audio" data-src="ghost_in_my_rearview.mp3">Challenge Audio 2</button>
+      <button class="challenge-audio" data-src="patmu's_rage.mp3">Challenge Audio 3</button>
       <button id="uploadMP3">Upload MP3</button>
       <button id="closeMusicChallenge">Close</button>
     </div>
@@ -306,8 +310,12 @@
     <canvas id="canvas"></canvas>
     <!-- Bottom Bar with Recording Controls and Home -->
     <div id="bottomBar">
-      <button id="startRec">Start Recording</button>
-      <button id="stopRec">Stop Recording</button>
+      <!-- Track (Audio Layer) Recording Buttons -->
+      <button id="startRec">Start Track Recording</button>
+      <button id="stopRec">Stop Track Recording</button>
+      <!-- Screen Recording Buttons (Canvas + Audio) -->
+      <button id="startScreenRec">Start Screen Recording</button>
+      <button id="stopScreenRec">Stop Screen Recording</button>
       <button id="homeBottom">Home</button>
     </div>
   </div>
@@ -323,11 +331,9 @@
      * PAGE NAVIGATION
      ***********************/
     function showPage(pageId) {
-      // Hide all pages
       document.querySelectorAll('.page').forEach(page => {
         page.style.display = 'none';
       });
-      // Show the target page
       const target = document.getElementById(pageId);
       if(target) {
         target.style.display = 'flex';
@@ -352,16 +358,21 @@
     let instrumentZones = [], handHistory = {}, animations = [], judgements = [];
     let mirror = false, detectionTolerance = 60, paused = false, muted = false;
     let transportStarted = false;
+    let challengePlayer; // For challenge audio playback
     Tone.Transport.bpm.value = 120;
     const beatInterval = 60 / Tone.Transport.bpm.value;
     
     // For star (pixel) animations
     let stars = [];
     
-    // Create an AudioDestination node to capture audio for recording
+    // Create an AudioDestination node for recording audio.
     const audioDest = Tone.context.createMediaStreamDestination();
     
-    // Custom Assets (update paths as needed)
+    /***********************
+     * (Background player removed)
+     ***********************/
+    
+    // Custom Assets
     const bassImg = new Image();    bassImg.src = "drum.png";       
     const snareImg = new Image();   snareImg.src = "drum.png";     
     const hihatImg = new Image();   hihatImg.src = "drum.png";     
@@ -369,9 +380,8 @@
     const keyImg = new Image();     keyImg.src = "piano.png";         
     const guitarImg = new Image();  guitarImg.src = "guitar.png";     
     const synthImg = new Image();   synthImg.src = "melody.png";       
-    const bgPlayer = new Tone.Player({ url: "rockyou.mp3", loop: true, volume: -12 }).toDestination();
     
-    // Create instruments and connect them to both Tone.Destination and our audioDest:
+    // Create instruments and connect them to both the main output and audioDest:
     const bassDrum = new Tone.MembraneSynth().toDestination();
     bassDrum.connect(audioDest);
     const snare = new Tone.NoiseSynth({
@@ -400,7 +410,6 @@
     guitarSynth.connect(audioDest);
     const synthInst = new Tone.Synth().toDestination();
     synthInst.connect(audioDest);
-    bgPlayer.connect(audioDest);
     
     /***********************
      * SEQUENCE MELODY PLAYBACK
@@ -498,7 +507,6 @@
       drawUIZones();
     }
     
-    // Create buttons in the UI panel for each zone (for manual triggering)
     function drawUIZones(){
       let panel = document.getElementById('ui-panel');
       panel.innerHTML = "";
@@ -512,14 +520,12 @@
       });
     }
     
-    // Draw the instrument zones on the canvas for visual feedback
     function drawInstrumentZonesOnCanvas(){
       if(currentInstrument === 'drum'){
         instrumentZones.forEach(zone => drawDrum(zone));
       } else if(currentInstrument === 'piano_chords'){
         instrumentZones.forEach(zone => drawKey(zone));
-      }
-      else {
+      } else {
         instrumentZones.forEach(zone => drawMelody(zone));
       }
     }
@@ -555,17 +561,14 @@
       ctx.fillText(zone.label, zone.x, zone.y + 50);
       ctx.restore();
     }
-
+    
     function drawMelody(zone){
       const size = zone.radius * 1.5,
             x = zone.x - zone.radius,
             y = zone.y - zone.radius;
       ctx.save();
       ctx.imageSmoothingEnabled = false;
-      if(zone.sequence === "1353") ctx.drawImage(synthImg, x, y, size, size);
-      else if(zone.sequence === "5671") ctx.drawImage(synthImg, x, y, size, size);
-      else if(zone.sequence === "6531") ctx.drawImage(synthImg, x, y, size, size);
-      else if(zone.sequence === "0246") ctx.drawImage(synthImg, x, y, size, size);
+      ctx.drawImage(synthImg, x, y, size, size);
       ctx.font = "bold 14px 'Press Start 2P', sans-serif";
       ctx.fillStyle = "#333";
       ctx.textAlign = "center";
@@ -635,7 +638,7 @@
       }
     }
     
-    // Star (pixel) animations: spawn, update, and draw
+    // Star (pixel) animations
     function spawnPixelStar(x, y) {
       stars.push({
         x: x,
@@ -752,7 +755,6 @@
         return;
       }
       
-      // Draw instrument zones on canvas
       drawInstrumentZonesOnCanvas();
       
       if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
@@ -796,25 +798,106 @@
     }
     
     /***********************
-     * SCREEN & AUDIO RECORDING
+     * CHALLENGE AUDIO BUTTONS
      ***********************/
-    let mediaRecorder;
-    let recordedChunks = [];
+    document.querySelectorAll('.challenge-audio').forEach(btn => {
+      btn.addEventListener('click', async function(){
+        try {
+          await Tone.start();
+          console.log("Audio context resumed.");
+        } catch (err) {
+          console.error("Error resuming AudioContext:", err);
+        }
+        const src = this.getAttribute('data-src');
+        console.log("Selected challenge audio source:", src);
+        if (challengePlayer) {
+          challengePlayer.stop();
+        }
+        challengePlayer = new Tone.Player({
+          url: src,
+          loop: true,
+          volume: -12,
+          onload: () => {
+            console.log("Challenge audio loaded successfully.");
+            challengePlayer.start();
+          },
+          onerror: (error) => {
+            console.error("Error loading challenge audio:", error);
+          }
+        }).toDestination();
+      });
+    });
     
-    function startRecording() {
-      console.log("Starting recording...");
+    /***********************
+     * TRACK RECORDING & LAYERING (Audio Only)
+     ***********************/
+    let trackRecorder;
+    let recordedChunks = [];
+    let recordedTracks = [];
+    
+    function startTrackRecording() {
+      recordedChunks = [];
       try {
-        let canvasStream = canvas.captureStream(30); // 30 FPS
+        trackRecorder = new MediaRecorder(audioDest.stream);
+      } catch (e) {
+        console.error("Error creating MediaRecorder for track recording:", e);
+        return;
+      }
+      
+      trackRecorder.ondataavailable = function(event) {
+        if (event.data && event.data.size > 0) {
+          recordedChunks.push(event.data);
+        }
+      };
+
+      trackRecorder.onstop = function() {
+        const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+        const url = URL.createObjectURL(blob);
+        const newTrack = new Tone.Player({
+          url: url,
+          loop: true,
+          autostart: true
+        }).toDestination();
+        recordedTracks.push(newTrack);
+        console.log("Track recorded and layer added.");
+      };
+
+      trackRecorder.start();
+      console.log("Track recording started.");
+    }
+
+    function stopTrackRecording() {
+      if (trackRecorder && trackRecorder.state !== "inactive") {
+        trackRecorder.stop();
+        console.log("Track recording stopped.");
+      }
+    }
+    
+    document.getElementById('startRec').addEventListener('click', startTrackRecording);
+    document.getElementById('stopRec').addEventListener('click', stopTrackRecording);
+    
+    /***********************
+     * SCREEN RECORDING (Canvas + Audio)
+     ***********************/
+    // Using code that has worked before.
+    let screenRecorder;
+    let screenRecordedChunks = [];
+    
+    function startScreenRecording() {
+      console.log("Starting screen recording...");
+      try {
+        let canvasStream = canvas.captureStream(30); // 30 FPS from the canvas
         let audioStream = audioDest.stream;
         let combinedStream = new MediaStream([...canvasStream.getVideoTracks(), ...audioStream.getAudioTracks()]);
-        mediaRecorder = new MediaRecorder(combinedStream, { mimeType: 'video/webm' });
-        mediaRecorder.ondataavailable = function(e) {
+        screenRecorder = new MediaRecorder(combinedStream, { mimeType: 'video/webm' });
+        screenRecordedChunks = [];
+        screenRecorder.ondataavailable = function(e) {
           if (e.data.size > 0) {
-            recordedChunks.push(e.data);
+            screenRecordedChunks.push(e.data);
           }
         };
-        mediaRecorder.onstop = function() {
-          const blob = new Blob(recordedChunks, { type: 'video/webm' });
+        screenRecorder.onstop = function() {
+          const blob = new Blob(screenRecordedChunks, { type: 'video/webm' });
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.style.display = 'none';
@@ -826,42 +909,30 @@
             document.body.removeChild(a);
             window.URL.revokeObjectURL(url);
           }, 100);
-          recordedChunks = [];
-          console.log("Recording stopped and file downloaded.");
+          screenRecordedChunks = [];
+          console.log("Screen recording stopped and file downloaded.");
         };
-        mediaRecorder.start();
+        screenRecorder.start();
       } catch (err) {
-        console.error("Error starting recording:", err);
+        console.error("Error starting screen recording:", err);
       }
     }
     
-    function stopRecording() {
-      console.log("Stopping recording...");
-      if (mediaRecorder && mediaRecorder.state !== "inactive") {
-        mediaRecorder.stop();
+    function stopScreenRecording() {
+      console.log("Stopping screen recording...");
+      if (screenRecorder && screenRecorder.state !== "inactive") {
+        screenRecorder.stop();
       } else {
-        console.warn("No active recording to stop.");
+        console.warn("No active screen recording to stop.");
       }
     }
     
-    /***********************
-     * INITIALIZE GAME (START BASELINE BEAT)
-     ***********************/
-    function initializeGame() {
-      Tone.start();
-      bgPlayer.start();
-      if (!transportStarted) {
-        Tone.Transport.start();
-        transportStarted = true;
-      }
-      updateInstrumentZones();
-      console.log("Game initialized. Baseline beat running.");
-    }
+    document.getElementById('startScreenRec').addEventListener('click', startScreenRecording);
+    document.getElementById('stopScreenRec').addEventListener('click', stopScreenRecording);
     
     /***********************
      * UI & MENU EVENTS
      ***********************/
-    // Dropdown Menu events
     document.getElementById('menuBtn').addEventListener('click', function(e){
       e.stopPropagation();
       const menuContent = document.getElementById('dropdownMenuContent');
@@ -885,7 +956,7 @@
       muted = !muted;
       this.textContent = muted ? "Unmute Music" : "Mute Music";
       document.getElementById('dropdownMenuContent').style.display = 'none';
-      bgPlayer.mute = muted;
+      if(challengePlayer) challengePlayer.mute = muted;
     });
     
     document.getElementById('restartGame').addEventListener('click', function(e){
@@ -899,11 +970,9 @@
     });
     
     document.getElementById('startGameBtn').addEventListener('click', function(){
-      // From the home page, go to the game menu.
       showPage('gameMenu');
     });
     
-    // Left Sidebar & Submenu events
     document.getElementById('chooseInstrumentBtn').addEventListener('click', function(){
       document.getElementById('instrumentSelection').style.display = 'block';
       document.getElementById('musicChallengePanel').style.display = 'none';
@@ -918,7 +987,6 @@
     document.getElementById('closeMusicChallenge').addEventListener('click', function(){
       document.getElementById('musicChallengePanel').style.display = 'none';
     });
-    // Instrument selection buttons
     document.querySelectorAll('.instSelect').forEach(btn => {
       btn.addEventListener('click', function(){
         currentInstrument = this.getAttribute('data-inst');
@@ -926,29 +994,32 @@
         updateInstrumentZones();
       });
     });
-    // Music Challenge upload (placeholder)
     document.getElementById('uploadMP3').addEventListener('click', function(){
       alert('MP3 Upload feature coming soon!');
     });
     
-    // Bottom Bar Recording and Home events
-    document.getElementById('startRec').addEventListener('click', function(){
-      startRecording();
-    });
-    document.getElementById('stopRec').addEventListener('click', function(){
-      stopRecording();
-    });
     document.getElementById('homeBottom').addEventListener('click', function(){
       showPage('homePage');
     });
     
-    // NEW: Toggle Mirror button event (in left sidebar)
     document.getElementById('toggleMirrorBtn').addEventListener('click', function(){
       mirror = !mirror;
       updateInstrumentZones();
       console.log("Mirror toggled: ", mirror);
     });
     
+    /***********************
+     * INITIALIZE GAME (START BASELINE BEAT)
+     ***********************/
+    function initializeGame() {
+      Tone.start();
+      if (!transportStarted) {
+        Tone.Transport.start();
+        transportStarted = true;
+      }
+      updateInstrumentZones();
+      console.log("Game initialized. Baseline beat running.");
+    }
   </script>
 </body>
 </html>
