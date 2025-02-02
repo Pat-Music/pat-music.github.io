@@ -2,8 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>AR Music Game</title>
+  <title>Padmu</title>
   <style>
+    /* Global Styles */
     html, body {
       margin: 0;
       padding: 0;
@@ -17,21 +18,35 @@
       left: 0;
       width: 100vw;
       height: 100vh;
-      background: linear-gradient(135deg, #ff7e5f, #feb47b);
+      background: linear-gradient(135deg, #1e3c72, #2a5298); /* Blue gradient */
       display: flex;
       flex-direction: column;
       justify-content: center;
       align-items: center;
       color: #fff;
       text-align: center;
+      padding: 20px;
     }
     #homePage h1 {
-      font-size: 3em;
+      font-size: 4em;
       margin-bottom: 20px;
+      letter-spacing: 4px;
+    }
+    #description {
+      background: rgba(33, 150, 243, 0.1); /* Light blue tint */
+      border: 2px solid #2196f3;
+      border-radius: 10px;
+      padding: 20px;
+      width: 80%;
+      max-height: 200px;
+      overflow-y: auto;
+      margin-bottom: 30px;
+      font-size: 0.8em;
+      line-height: 1.4em;
     }
     #homePage button {
-      background: #fff;
-      color: #ff7e5f;
+      background: #2196f3;
+      color: #fff;
       border: none;
       padding: 15px 30px;
       font-size: 16px;
@@ -40,7 +55,7 @@
       transition: background 0.3s, transform 0.2s;
     }
     #homePage button:hover {
-      background: #f2f2f2;
+      background: #64b5f6;
       transform: scale(1.05);
     }
     /* Game Page Styles */
@@ -51,7 +66,7 @@
       left: 0;
       width: 100vw;
       height: 100vh;
-      background: #000;
+      background: #130c33;
     }
     /* Left UI Panel */
     #ui-panel {
@@ -61,11 +76,11 @@
       z-index: 10;
       background: rgba(255,255,255,0.9);
       padding: 15px;
-      border: 2px solid #ff7e5f;
+      border: 2px solid #2196f3;
       border-radius: 10px;
     }
     #ui-panel button {
-      background: #ff7e5f;
+      background: #2196f3;
       border: none;
       color: #fff;
       padding: 10px 15px;
@@ -86,7 +101,7 @@
       z-index: 10;
     }
     #menuBtn {
-      background: #feb47b;
+      background: #2196f3;
       border: none;
       color: #fff;
       padding: 10px 15px;
@@ -113,7 +128,7 @@
       font-size: 12px;
     }
     #dropdownMenuContent a:hover {
-      background: #feb47b;
+      background: #2196f3;
       color: #fff;
     }
     /* Canvas */
@@ -123,18 +138,25 @@
       left: 0;
       width: 100vw;
       height: 100vh;
-      background: #000;
+      background: #130c33;
       z-index: 1;
       pointer-events: none;
       image-rendering: pixelated;
     }
-    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
   </style>
 </head>
 <body>
   <!-- Home Page -->
   <div id="homePage">
-    <h1>Welcome to AR Music Game!</h1>
+    <h1>Padmu</h1>
+    <div id="description">
+      <p>
+        Welcome to Padmu – the ultimate AR music experience! Use your hands to create beats, mix sounds, and transform your space into a live performance stage.
+      </p>
+      <p>
+        Play multiple instruments, enjoy a dynamic background soundtrack, and receive real-time feedback on your rhythm and skill. Immerse yourself in a world where every gesture sparks a new melody.
+      </p>
+    </div>
     <button id="startGameBtn">Start Game</button>
   </div>
   
@@ -167,24 +189,23 @@
   <script src="https://cdn.jsdelivr.net/npm/tone@14.7.77/build/Tone.js"></script>
   
   <script>
-    /* ------------------ Global Variables & Setup ------------------ */
+    /* ---------- Global Variables & Setup ---------- */
     let currentInstrument = 'drum', instrumentZones = [], handHistory = {}, animations = [], judgements = [];
     let mirror = false, detectionTolerance = 60, paused = false, muted = false;
     Tone.Transport.bpm.value = 120;
     const beatInterval = 60 / Tone.Transport.bpm.value;
     
-    /* ------------------ Custom Assets ------------------ */
-    const bassImg = new Image(); bassImg.src = "bass.png";       // NEED UPDATE: path to bass drum image
-    const snareImg = new Image(); snareImg.src = "snare.png";    // NEED UPDATE: path to snare image
-    const hihatImg = new Image(); hihatImg.src = "hihat.png";    // NEED UPDATE: path to hi-hat image
-    const tomImg = new Image(); tomImg.src = "tom.png";          // NEED UPDATE: path to tom drum image
-    const keyImg = new Image(); keyImg.src = "key.png";          // NEED UPDATE: path to key image
-    const guitarImg = new Image(); guitarImg.src = "guitar.png"; // NEED UPDATE: path to guitar image
-    const synthImg = new Image(); synthImg.src = "synth.png";    // NEED UPDATE: path to synth image
+    /* ---------- Custom Assets (Update paths as needed) ---------- */
+    const bassImg = new Image(); bassImg.src = "bass.png";       // NEED UPDATE
+    const snareImg = new Image(); snareImg.src = "snare.png";    // NEED UPDATE
+    const hihatImg = new Image(); hihatImg.src = "hihat.png";    // NEED UPDATE
+    const tomImg = new Image(); tomImg.src = "tom.png";          // NEED UPDATE
+    const keyImg = new Image(); keyImg.src = "key.png";          // NEED UPDATE
+    const guitarImg = new Image(); guitarImg.src = "guitar.png"; // NEED UPDATE
+    const synthImg = new Image(); synthImg.src = "synth.png";    // NEED UPDATE
+    const bgPlayer = new Tone.Player({ url: "rockyou.mp3", loop: true, volume: -12 }).toDestination(); // NEED UPDATE
     
-    const bgPlayer = new Tone.Player({ url: "rockyou.mp3", loop: true, volume: -12 }).toDestination(); // NEED UPDATE: background music file
-    
-    /* ------------------ Tone.js Instruments ------------------ */
+    /* ---------- Tone.js Instruments ---------- */
     const bassDrum = new Tone.MembraneSynth().toDestination();
     const snare = new Tone.NoiseSynth({ noise: { type: "white" }, envelope: { attack: 0.001, decay: 0.2, sustain: 0 } }).toDestination();
     const hiHat = new Tone.MetalSynth({ frequency: 250, envelope: { attack: 0.001, decay: 0.1, release: 0.1 }, harmonicity: 5.1, modulationIndex: 32, resonance: 4000, octaves: 1.5 }).toDestination();
@@ -193,7 +214,7 @@
     const guitarSynth = new Tone.PluckSynth().toDestination();
     const synthInst = new Tone.Synth().toDestination();
     
-    /* ------------------ Canvas & Video ------------------ */
+    /* ---------- Canvas & Video ---------- */
     const canvas = document.getElementById('canvas'), ctx = canvas.getContext('2d');
     const videoElement = document.getElementById('video');
     function resizeCanvas(){
@@ -204,7 +225,7 @@
     resizeCanvas();
     window.addEventListener("resize", resizeCanvas);
     
-    /* ------------------ Instrument Zones ------------------ */
+    /* ---------- Instrument Zones ---------- */
     function updateInstrumentZones(){
       let baseZones = [];
       const zoneRadius = 60;
@@ -474,7 +495,7 @@
     
     document.getElementById('restartGame').addEventListener('click', function(e){
       e.preventDefault();
-      document.location.reload();
+      location.reload();
     });
     
     document.getElementById('goHome').addEventListener('click', function(e){
@@ -492,8 +513,6 @@
       document.getElementById('gamePage').style.display = 'block';
       Tone.Transport.start();
     });
-    
-    // Remove any global body click listener that restarts audio.
   </script>
 </body>
 </html>
