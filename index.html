@@ -4,14 +4,13 @@
   <meta charset="UTF-8" />
   <title>AR Music Game</title>
   <style>
-    /* Global styles */
     html, body {
       margin: 0;
       padding: 0;
       overflow: hidden;
       font-family: 'Press Start 2P', sans-serif;
     }
-    /* Home Page */
+    /* Home Page Styles */
     #homePage {
       position: absolute;
       top: 0;
@@ -44,7 +43,7 @@
       background: #f2f2f2;
       transform: scale(1.05);
     }
-    /* Game Page */
+    /* Game Page Styles */
     #gamePage {
       display: none;
       position: absolute;
@@ -60,7 +59,7 @@
       top: 20px;
       left: 20px;
       z-index: 10;
-      background: rgba(255, 255, 255, 0.9);
+      background: rgba(255,255,255,0.9);
       padding: 15px;
       border: 2px solid #ff7e5f;
       border-radius: 10px;
@@ -129,6 +128,7 @@
       pointer-events: none;
       image-rendering: pixelated;
     }
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
   </style>
 </head>
 <body>
@@ -151,6 +151,7 @@
       <button id="menuBtn">Menu</button>
       <div id="dropdownMenuContent">
         <a href="#" id="pauseUnpause">Pause</a>
+        <a href="#" id="muteMusic">Mute Music</a>
         <a href="#" id="restartGame">Restart</a>
         <a href="#" id="goHome">Home</a>
       </div>
@@ -166,13 +167,13 @@
   <script src="https://cdn.jsdelivr.net/npm/tone@14.7.77/build/Tone.js"></script>
   
   <script>
-    /* ------------------------ Game Variables ------------------------ */
+    /* ------------------ Global Variables & Setup ------------------ */
     let currentInstrument = 'drum', instrumentZones = [], handHistory = {}, animations = [], judgements = [];
-    let mirror = false, detectionTolerance = 60, paused = false;
+    let mirror = false, detectionTolerance = 60, paused = false, muted = false;
     Tone.Transport.bpm.value = 120;
     const beatInterval = 60 / Tone.Transport.bpm.value;
     
-    /* ------------------------ Custom Assets ------------------------ */
+    /* ------------------ Custom Assets ------------------ */
     const bassImg = new Image(); bassImg.src = "bass.png";       // NEED UPDATE: path to bass drum image
     const snareImg = new Image(); snareImg.src = "snare.png";    // NEED UPDATE: path to snare image
     const hihatImg = new Image(); hihatImg.src = "hihat.png";    // NEED UPDATE: path to hi-hat image
@@ -183,7 +184,7 @@
     
     const bgPlayer = new Tone.Player({ url: "rockyou.mp3", loop: true, volume: -12 }).toDestination(); // NEED UPDATE: background music file
     
-    /* ------------------------ Tone.js Instruments ------------------------ */
+    /* ------------------ Tone.js Instruments ------------------ */
     const bassDrum = new Tone.MembraneSynth().toDestination();
     const snare = new Tone.NoiseSynth({ noise: { type: "white" }, envelope: { attack: 0.001, decay: 0.2, sustain: 0 } }).toDestination();
     const hiHat = new Tone.MetalSynth({ frequency: 250, envelope: { attack: 0.001, decay: 0.1, release: 0.1 }, harmonicity: 5.1, modulationIndex: 32, resonance: 4000, octaves: 1.5 }).toDestination();
@@ -192,10 +193,9 @@
     const guitarSynth = new Tone.PluckSynth().toDestination();
     const synthInst = new Tone.Synth().toDestination();
     
-    /* ------------------------ Canvas & Video ------------------------ */
+    /* ------------------ Canvas & Video ------------------ */
     const canvas = document.getElementById('canvas'), ctx = canvas.getContext('2d');
     const videoElement = document.getElementById('video');
-    
     function resizeCanvas(){
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
@@ -204,34 +204,34 @@
     resizeCanvas();
     window.addEventListener("resize", resizeCanvas);
     
-    /* ------------------------ Instrument Zones ------------------------ */
+    /* ------------------ Instrument Zones ------------------ */
     function updateInstrumentZones(){
       let baseZones = [];
       const zoneRadius = 60;
       if(currentInstrument === 'drum'){
-        const drumTypes = ["bass", "snare", "hihat", "tom"], zoneCount = drumTypes.length;
-        const zoneWidth = canvas.width / zoneCount;
-        for(let i = 0; i < zoneCount; i++){
-          baseZones.push({ x: i * zoneWidth + zoneWidth/2, y: canvas.height * 0.8, radius: zoneRadius, triggered: false, label: drumTypes[i].toUpperCase(), drumType: drumTypes[i] });
-        }
+        const drumTypes = ["bass", "snare", "hihat", "tom"];
+        const zoneWidth = canvas.width / drumTypes.length;
+        drumTypes.forEach((type, i) => {
+          baseZones.push({ x: i * zoneWidth + zoneWidth/2, y: canvas.height * 0.8, radius: zoneRadius, triggered: false, label: type.toUpperCase(), drumType: type });
+        });
       } else if(currentInstrument === 'piano'){
-        const notes = ["C4", "D4", "E4", "F4", "G4", "A4", "B4", "C5"], zoneCount = notes.length;
-        const zoneWidth = canvas.width / zoneCount;
-        for(let i = 0; i < zoneCount; i++){
-          baseZones.push({ x: i * zoneWidth + zoneWidth/2, y: canvas.height * 0.8, radius: zoneRadius, triggered: false, label: notes[i], note: notes[i] });
-        }
+        const notes = ["C4", "D4", "E4", "F4", "G4", "A4", "B4", "C5"];
+        const zoneWidth = canvas.width / notes.length;
+        notes.forEach((note, i) => {
+          baseZones.push({ x: i * zoneWidth + zoneWidth/2, y: canvas.height * 0.8, radius: zoneRadius, triggered: false, label: note, note: note });
+        });
       } else if(currentInstrument === 'guitar'){
-        const notes = ["E3", "G3", "A3", "B3", "C4", "D4", "E4"], zoneCount = notes.length;
-        const zoneWidth = canvas.width / zoneCount;
-        for(let i = 0; i < zoneCount; i++){
-          baseZones.push({ x: i * zoneWidth + zoneWidth/2, y: canvas.height * 0.8, radius: zoneRadius, triggered: false, label: notes[i], note: notes[i] });
-        }
+        const notes = ["E3", "G3", "A3", "B3", "C4", "D4", "E4"];
+        const zoneWidth = canvas.width / notes.length;
+        notes.forEach((note, i) => {
+          baseZones.push({ x: i * zoneWidth + zoneWidth/2, y: canvas.height * 0.8, radius: zoneRadius, triggered: false, label: note, note: note });
+        });
       } else if(currentInstrument === 'synth'){
-        const notes = ["C4", "E4", "G4", "B4", "C5"], zoneCount = notes.length;
-        const zoneWidth = canvas.width / zoneCount;
-        for(let i = 0; i < zoneCount; i++){
-          baseZones.push({ x: i * zoneWidth + zoneWidth/2, y: canvas.height * 0.8, radius: zoneRadius, triggered: false, label: notes[i], note: notes[i] });
-        }
+        const notes = ["C4", "E4", "G4", "B4", "C5"];
+        const zoneWidth = canvas.width / notes.length;
+        notes.forEach((note, i) => {
+          baseZones.push({ x: i * zoneWidth + zoneWidth/2, y: canvas.height * 0.8, radius: zoneRadius, triggered: false, label: note, note: note });
+        });
       }
       instrumentZones = mirror ? baseZones.map(zone => ({ ...zone, x: canvas.width - zone.x })) : baseZones;
     }
@@ -260,9 +260,9 @@
     }
     
     function drawKey(zone){
-      const keyWidth = zone.radius * 2, keyHeight = zone.radius * 2, x = zone.x - zone.radius, y = zone.y - zone.radius;
+      const keyW = zone.radius * 2, keyH = zone.radius * 2, x = zone.x - zone.radius, y = zone.y - zone.radius;
       ctx.save(); ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(keyImg, x, y, keyWidth, keyHeight);
+      ctx.drawImage(keyImg, x, y, keyW, keyH);
       ctx.font = "bold 14px 'Press Start 2P', sans-serif"; ctx.fillStyle = "#333"; ctx.textAlign = "center";
       ctx.fillText(zone.label, zone.x, zone.y + 20); ctx.restore();
     }
@@ -387,6 +387,16 @@
       } else {
         ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
       }
+      
+      if(paused){
+        ctx.font = "bold 40px 'Press Start 2P', sans-serif";
+        ctx.fillStyle = "rgba(255,255,255,0.8)";
+        ctx.textAlign = "center";
+        ctx.fillText("Paused", canvas.width/2, canvas.height/2);
+        ctx.restore();
+        return;
+      }
+      
       drawInstrumentZones();
       if(results.multiHandLandmarks && results.multiHandLandmarks.length > 0){
         results.multiHandLandmarks.forEach((landmarks, handIndex) => {
@@ -424,31 +434,28 @@
       drawHandTrails();
       drawAnimations();
       drawJudgements();
-      if(paused){
-        ctx.font = "bold 40px 'Press Start 2P', sans-serif";
-        ctx.fillStyle = "rgba(255,255,255,0.8)";
-        ctx.textAlign = "center";
-        ctx.fillText("Paused", canvas.width/2, canvas.height/2);
-      }
       ctx.restore();
     }
     
-    /* ------------------------ UI & Dropdown Menu ------------------------ */
+    /* ------------------ UI & Dropdown Menu ------------------ */
     document.getElementById('drumBtn').addEventListener('click', function(){ currentInstrument = 'drum'; updateInstrumentZones(); });
     document.getElementById('pianoBtn').addEventListener('click', function(){ currentInstrument = 'piano'; updateInstrumentZones(); });
     document.getElementById('guitarBtn').addEventListener('click', function(){ currentInstrument = 'guitar'; updateInstrumentZones(); });
     document.getElementById('synthBtn').addEventListener('click', function(){ currentInstrument = 'synth'; updateInstrumentZones(); });
     document.getElementById('toggleMirror').addEventListener('click', function(){ mirror = !mirror; updateInstrumentZones(); });
     
-    document.getElementById('menuBtn').addEventListener('click', function(){
+    document.getElementById('menuBtn').addEventListener('click', function(e){
+      e.stopPropagation();
       const menuContent = document.getElementById('dropdownMenuContent');
       menuContent.style.display = (menuContent.style.display === 'block') ? 'none' : 'block';
     });
-    document.getElementById('pauseUnpause').addEventListener('click', function(){
+    
+    document.getElementById('pauseUnpause').addEventListener('click', function(e){
+      e.preventDefault();
       paused = !paused;
       this.textContent = paused ? "Unpause" : "Pause";
       document.getElementById('dropdownMenuContent').style.display = 'none';
-      if(paused) {
+      if(paused){
         Tone.Transport.pause();
         bgPlayer.pause();
       } else {
@@ -456,25 +463,37 @@
         bgPlayer.start();
       }
     });
-    document.getElementById('restartGame').addEventListener('click', function(){ location.reload(); });
-    document.getElementById('goHome').addEventListener('click', function(){
+    
+    document.getElementById('muteMusic').addEventListener('click', function(e){
+      e.preventDefault();
+      muted = !muted;
+      this.textContent = muted ? "Unmute Music" : "Mute Music";
+      document.getElementById('dropdownMenuContent').style.display = 'none';
+      bgPlayer.mute = muted;
+    });
+    
+    document.getElementById('restartGame').addEventListener('click', function(e){
+      e.preventDefault();
+      document.location.reload();
+    });
+    
+    document.getElementById('goHome').addEventListener('click', function(e){
+      e.preventDefault();
       document.getElementById('gamePage').style.display = 'none';
       document.getElementById('homePage').style.display = 'flex';
       Tone.Transport.stop();
       bgPlayer.stop();
     });
     
-    /* ------------------------ Home Page Start Button ------------------------ */
-    document.getElementById('startGameBtn').addEventListener('click', function(){
+    document.getElementById('startGameBtn').addEventListener('click', async function(){
+      await Tone.start();
+      bgPlayer.start();
       document.getElementById('homePage').style.display = 'none';
       document.getElementById('gamePage').style.display = 'block';
+      Tone.Transport.start();
     });
     
-    /* ------------------------ Start Audio on User Gesture ------------------------ */
-    document.body.addEventListener('click', async () => { 
-      await Tone.start(); 
-      bgPlayer.start(); 
-    });
+    // Remove any global body click listener that restarts audio.
   </script>
 </body>
 </html>
