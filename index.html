@@ -47,7 +47,7 @@
     }
     /* Game Menu */
     #gameMenu {
-      display: flex;
+      display: none;
       flex-direction: column;
       justify-content: center;
       align-items: center;
@@ -71,6 +71,7 @@
     }
     /* Game Page */
     #gamePage {
+      display: none;
       background: #130c33;
     }
     /* Global Button Style */
@@ -121,7 +122,7 @@
     /* Dropdown Menu (Top Right) */
     #dropdownMenu {
       position: absolute;
-      top: 20px;
+      top: 100px;
       right: 20px;
       z-index: 10;
     }
@@ -361,13 +362,13 @@
     const audioDest = Tone.context.createMediaStreamDestination();
     
     // Custom Assets (update paths as needed)
-    const bassImg = new Image();    bassImg.src = "bass.png";       
-    const snareImg = new Image();   snareImg.src = "snare.png";     
-    const hihatImg = new Image();   hihatImg.src = "hihat.png";     
-    const tomImg = new Image();     tomImg.src = "tom.png";         
-    const keyImg = new Image();     keyImg.src = "key.png";         
+    const bassImg = new Image();    bassImg.src = "drum.png";       
+    const snareImg = new Image();   snareImg.src = "drum.png";     
+    const hihatImg = new Image();   hihatImg.src = "drum.png";     
+    const tomImg = new Image();     tomImg.src = "drum.png";         
+    const keyImg = new Image();     keyImg.src = "piano.png";         
     const guitarImg = new Image();  guitarImg.src = "guitar.png";     
-    const synthImg = new Image();   synthImg.src = "synth.png";       
+    const synthImg = new Image();   synthImg.src = "melody.png";       
     const bgPlayer = new Tone.Player({ url: "rockyou.mp3", loop: true, volume: -12 }).toDestination();
     
     // Create instruments and connect them to both Tone.Destination and our audioDest:
@@ -515,8 +516,11 @@
     function drawInstrumentZonesOnCanvas(){
       if(currentInstrument === 'drum'){
         instrumentZones.forEach(zone => drawDrum(zone));
-      } else {
+      } else if(currentInstrument === 'piano_chords'){
         instrumentZones.forEach(zone => drawKey(zone));
+      }
+      else {
+        instrumentZones.forEach(zone => drawMelody(zone));
       }
     }
     
@@ -533,7 +537,7 @@
       ctx.font = "bold 14px 'Press Start 2P', sans-serif";
       ctx.fillStyle = "#000";
       ctx.textAlign = "center";
-      ctx.fillText(zone.label, zone.x, zone.y + 20);
+      ctx.fillText(zone.label, zone.x, zone.y + 50);
       ctx.restore();
     }
     
@@ -548,7 +552,24 @@
       ctx.font = "bold 14px 'Press Start 2P', sans-serif";
       ctx.fillStyle = "#333";
       ctx.textAlign = "center";
-      ctx.fillText(zone.label, zone.x, zone.y + 20);
+      ctx.fillText(zone.label, zone.x, zone.y + 50);
+      ctx.restore();
+    }
+
+    function drawMelody(zone){
+      const size = zone.radius * 1.5,
+            x = zone.x - zone.radius,
+            y = zone.y - zone.radius;
+      ctx.save();
+      ctx.imageSmoothingEnabled = false;
+      if(zone.sequence === "1353") ctx.drawImage(synthImg, x, y, size, size);
+      else if(zone.sequence === "5671") ctx.drawImage(synthImg, x, y, size, size);
+      else if(zone.sequence === "6531") ctx.drawImage(synthImg, x, y, size, size);
+      else if(zone.sequence === "0246") ctx.drawImage(synthImg, x, y, size, size);
+      ctx.font = "bold 14px 'Press Start 2P', sans-serif";
+      ctx.fillStyle = "#333";
+      ctx.textAlign = "center";
+      ctx.fillText(zone.label, zone.x, zone.y + 50);
       ctx.restore();
     }
     
