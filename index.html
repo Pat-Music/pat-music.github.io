@@ -5,245 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Patmu - AR Music Creation</title>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
-  <style>
-    /* Global Styles */
-    body {
-      margin: 0;
-      padding: 0;
-      background: #0c0391;
-      font-family: 'Press Start 2P', cursive;
-      color: #ff69b6;
-      overflow-x: hidden;
-    }
-    /* All pages are hidden by default */
-    .page { 
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      display: none;
-    }
-    /* Home page forced visible on load */
-    #homePage { 
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      text-align: center;
-      padding: 20px;
-    }
-    .title {
-      font-size: 2.5rem;
-      margin-bottom: 2rem;
-      text-shadow: 2px 2px rgba(128,128,128,0.8);
-    }
-    .subtitle {
-      font-size: 1rem;
-      margin-bottom: 3rem;
-      max-width: 800px;
-      color: #fff;
-      line-height: 1.5;
-    }
-    /* Game Menu */
-    #gameMenu {
-      display: none;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-    }
-    .game-grid {
-      display: grid;
-      gap: 2rem;
-      margin-top: 3rem;
-    }
-    .game-block {
-      padding: 2rem;
-      border: 4px solid #ff69b6;
-      cursor: pointer;
-      transition: all 0.3s;
-      color: #fff;
-      text-align: center;
-    }
-    .game-block:hover {
-      background-color: rgba(255,105,182,0.27);
-      transform: scale(1.05);
-    }
-    /* Game Page */
-    #gamePage {
-      display: none;
-      background: #130c33;
-    }
-    /* Global Button Style */
-    .btn {
-      padding: 15px 30px;
-      background: transparent;
-      border: 3px solid #ff69b6;
-      color: #ff69b6;
-      cursor: pointer;
-      transition: all 0.3s;
-      text-decoration: none;
-      font-family: 'Press Start 2P', cursive;
-      box-shadow: 2px 2px 4px rgba(128,128,128,0.5);
-    }
-    .btn:hover {
-      background: #ff69b6;
-      color: #000;
-      transform: scale(1.1);
-    }
-    /* UI Panel (for instrument zone buttons) */
-    #ui-panel {
-      position: absolute;
-      top: 20px;
-      right: 20px;
-      z-index: 10;
-      background: rgba(255,255,255,0.9);
-      padding: 15px;
-      border: 2px solid #ff69b6;
-      border-radius: 10px;
-      box-shadow: 2px 2px 4px rgba(128,128,128,0.5);
-    }
-    #ui-panel button {
-      background: #ff69b6;
-      border: none;
-      color: #fff;
-      padding: 10px 15px;
-      margin: 5px;
-      font-size: 12px;
-      cursor: pointer;
-      border-radius: 5px;
-      transition: transform 0.2s;
-      font-family: 'Press Start 2P', cursive;
-      box-shadow: 2px 2px 4px rgba(128,128,128,0.5);
-    }
-    #ui-panel button:hover {
-      transform: scale(1.05);
-    }
-    /* Dropdown Menu (Top Right) */
-    #dropdownMenu {
-      position: absolute;
-      top: 100px;
-      right: 20px;
-      z-index: 10;
-    }
-    #menuBtn {
-      background: #ff69b6;
-      border: none;
-      color: #fff;
-      padding: 10px 15px;
-      font-size: 12px;
-      cursor: pointer;
-      border-radius: 5px;
-      font-family: 'Press Start 2P', cursive;
-      box-shadow: 2px 2px 4px rgba(128,128,128,0.5);
-    }
-    #dropdownMenuContent {
-      display: none;
-      position: absolute;
-      right: 0;
-      background: #fff;
-      min-width: 150px;
-      box-shadow: 2px 2px 4px rgba(128,128,128,0.5);
-      border-radius: 5px;
-      overflow: hidden;
-      z-index: 11;
-    }
-    #dropdownMenuContent a {
-      display: block;
-      padding: 10px;
-      color: #333;
-      text-decoration: none;
-      font-size: 12px;
-      font-family: 'Press Start 2P', cursive;
-    }
-    #dropdownMenuContent a:hover {
-      background: #ff69b6;
-      color: #fff;
-    }
-    /* Left Sidebar for menus */
-    #leftSidebar {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 200px;
-      height: 100vh;
-      background: rgba(0, 0, 0, 0.5);
-      padding: 10px;
-      box-sizing: border-box;
-      z-index: 20;
-    }
-    #leftSidebar button {
-      display: block;
-      width: 100%;
-      margin-bottom: 10px;
-      font-family: 'Press Start 2P', cursive;
-      background: #ff69b6;
-      color: #fff;
-      border: none;
-      padding: 10px;
-      cursor: pointer;
-      border-radius: 5px;
-      box-shadow: 2px 2px 4px rgba(128,128,128,0.5);
-    }
-    /* Instrument Selection and Music Challenge Panels */
-    #instrumentSelection, #musicChallengePanel {
-      position: absolute;
-      left: 210px;
-      top: 10px;
-      background: rgba(255,255,255,0.9);
-      padding: 10px;
-      border: 2px solid #ff69b6;
-      border-radius: 5px;
-      z-index: 30;
-      box-shadow: 2px 2px 4px rgba(128,128,128,0.5);
-    }
-    #instrumentSelection button, #musicChallengePanel button {
-      display: block;
-      margin-bottom: 5px;
-      font-family: 'Press Start 2P', cursive;
-      background: #ff69b6;
-      color: #fff;
-      border: none;
-      padding: 5px;
-      cursor: pointer;
-      border-radius: 5px;
-      box-shadow: 2px 2px 4px rgba(128,128,128,0.5);
-    }
-    /* Bottom Bar */
-    #bottomBar {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      width: 100%;
-      background: rgba(0,0,0,0.5);
-      text-align: center;
-      padding: 10px;
-      z-index: 20;
-    }
-    #bottomBar button {
-      font-family: 'Press Start 2P', cursive;
-      margin: 0 5px;
-      background: #ff69b6;
-      color: #fff;
-      border: none;
-      padding: 10px 20px;
-      cursor: pointer;
-      border-radius: 5px;
-      box-shadow: 2px 2px 4px rgba(128,128,128,0.5);
-    }
-    /* Canvas */
-    canvas {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      background: #130c33;
-      z-index: 1;
-      pointer-events: none;
-      image-rendering: pixelated;
-    }
-  </style>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <!-- Home Page (Landing) -->
@@ -276,14 +38,14 @@
       <button id="toggleMirrorBtn">Toggle Mirror</button>
     </div>
     <!-- Instrument Selection Panel (hidden by default) -->
-    <div id="instrumentSelection" style="display: none;">
+    <div id="instrumentSelection">
       <button class="instSelect" data-inst="drum">Drum</button>
       <button class="instSelect" data-inst="piano_chords">Piano Chords</button>
       <button class="instSelect" data-inst="sequence_melody">Sequence Melody</button>
       <button id="closeInstrumentSelection">Close</button>
     </div>
     <!-- Music Challenge Panel (hidden by default) -->
-    <div id="musicChallengePanel" style="display: none;">
+    <div id="musicChallengePanel">
       <h3>Music Challenge</h3>
       <p>Select a challenge or upload an MP3.</p>
       <!-- New audio challenge selections -->
@@ -293,7 +55,7 @@
       <button id="uploadMP3">Upload MP3</button>
       <button id="closeMusicChallenge">Close</button>
     </div>
-    
+     
     <!-- UI Panel for instrument zone buttons -->
     <div id="ui-panel"></div>
     <!-- Dropdown Menu (Top Right) -->
@@ -506,6 +268,66 @@
       instrumentZones = mirror ? baseZones.map(zone => ({ ...zone, x: canvas.width - zone.x })) : baseZones;
       drawUIZones();
     }
+
+    document.getElementById('uploadMP3').addEventListener('click', function(){
+  // Create a hidden file input element
+  let fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.accept = 'audio/mp3,audio/mpeg';
+  fileInput.style.display = 'none';
+
+  // When a file is selected
+  fileInput.addEventListener('change', function(event){
+    let file = event.target.files[0];
+    if (file) {
+      // Create an object URL for the selected file
+      let fileURL = URL.createObjectURL(file);
+      
+      // Create a new button for the uploaded MP3 file
+      let newBtn = document.createElement('button');
+      newBtn.className = 'challenge-audio';
+      newBtn.setAttribute('data-src', fileURL);
+      // Use the file name as the button text (or any custom label)
+      newBtn.textContent = file.name || 'Uploaded MP3 file';
+      
+      // Append the new button to the Music Challenge Panel
+      document.getElementById('musicChallengePanel').appendChild(newBtn);
+      
+      // Attach a click event to the new button to play the uploaded MP3
+      newBtn.addEventListener('click', async function(){
+        try {
+          await Tone.start();
+          console.log("Audio context resumed.");
+        } catch (err) {
+          console.error("Error resuming AudioContext:", err);
+        }
+        const src = newBtn.getAttribute('data-src');
+        console.log("Selected challenge audio source:", src);
+        if (challengePlayer) {
+          challengePlayer.stop();
+        }
+        challengePlayer = new Tone.Player({
+          url: src,
+          loop: true,
+          volume: -12,
+          onload: () => {
+            console.log("Challenge audio loaded successfully.");
+            challengePlayer.start();
+          },
+          onerror: (error) => {
+            console.error("Error loading challenge audio:", error);
+          }
+        }).toDestination();
+      });
+    }
+  });
+  
+  // Add the input to the DOM, trigger the click, then remove it
+  document.body.appendChild(fileInput);
+  fileInput.click();
+  document.body.removeChild(fileInput);
+});
+
     
     function drawUIZones(){
       let panel = document.getElementById('ui-panel');
@@ -879,7 +701,6 @@
     /***********************
      * SCREEN RECORDING (Canvas + Audio)
      ***********************/
-    // Using code that has worked before.
     let screenRecorder;
     let screenRecordedChunks = [];
     
@@ -994,9 +815,7 @@
         updateInstrumentZones();
       });
     });
-    document.getElementById('uploadMP3').addEventListener('click', function(){
-      alert('MP3 Upload feature coming soon!');
-    });
+
     
     document.getElementById('homeBottom').addEventListener('click', function(){
       showPage('homePage');
